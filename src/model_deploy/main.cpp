@@ -8,46 +8,80 @@
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/version.h"
+#include "uLCD_4DGL.h"
+#include "DA7212.h"
+#include <cmath>
 
-// Return the result of the last prediction
-int PredictGesture(float* output) {
-    // How many times the most recent gesture has been matched in a row
-    static int continuous_count = 0;
-    // The result of the last prediction
-    static int last_predict = -1;
-    // Find whichever output has a probability > 0.8 (they sum to 1)
-    int this_predict = -1;
-    for (int i = 0; i < label_num; i++) {
-        if (output[i] > 0.8) this_predict = i;
-    }
+#define bufferLength (32)
+#define note_limit (1024)
 
-    // No gesture was detected above the threshold
-    if (this_predict == -1) {
-        continuous_count = 0;
-        last_predict = label_num;
-        return label_num;
-    }
-    if (last_predict == this_predict) {
-        continuous_count += 1;
-    } else {
-        continuous_count = 0;
-    }
-    last_predict = this_predict;
+DA7212 audio;
+Serial pc(USBTX, USBRX);
+uLCD_4DGL uLCD(D1, D0, D2);
+DigitalOut green_led(LED2);
+InterruptIn btn1(SW2);
+InterruptIn btn2(SW3);
+EventQueue queue_uLCD(32 * EVENTS_EVENT_SIZE);
+EventQueue queue_audio(32 * EVENTS_EVENT_SIZE);
+EventQueue queue_load_note(32 * EVENTS_EVENT_SIZE);
+Thread thread_uLCD;
+Thread thread_audio;
+Thread thread_load_note;
 
-    // If we haven't yet had enough consecutive matches for this gesture,
-    // report a negative result
-    if (continuous_count < config.consecutiveInferenceThresholds[this_predict]) {
-        return label_num;
-    }
-    // Otherwise, we've seen a positive result, so clear all our variables
-    // and report it
-    continuous_count = 0;
-    last_predict = -1;
-    return this_predict;
-}
+int16_t waveform[kAudioTxBufferSize];
+char serialInBuffer[bufferLength];
+int serialCount = 0;
+
+int mode = 0;
+int mode_tmp = mode;
+bool pause = true;
+bool pause_tmp = pause;
+
+float freqency;
+float duration;
+
+int note[4][12] {
+    {65, 69, 73, 78, 82, 87, 93, 98, 104, 110, 117, 123},
+    {131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247},
+    {262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494},
+    {523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988}
+};
+
+char song_name[10][18];
+int song_lengh[10];
+int song[2][note_limit];
+
+void mode_change();
+void pause_switch();
+void uLCD_display();
+int PredictGesture(float* output);
+
+void playNote();
+
+void Node_set(float freq, float dura);
+void load_note();
 
 int main(int argc, char* argv[]) {
-    // Create an area of memory to use for input, output, and intermediate arrays.
+    
+    thread_uLCD.start(callback(&queue_uLCD, &EventQueue::dispatch_forever));
+    thread_audio.start(callback(&queue_audio, &EventQueue::dispatch_forever));
+    thread_load_note.start(callback(&queue_load_note, &EventQueue::dispatch_forever));
+
+    queue_uLCD.call(uLCD_display);
+    queue_audio.call(playNote);
+    queue_load_note.call(load_note);
+
+    btn1.fall(queue_uLCD.event(mode_change));
+    btn2.fall(queue_uLCD.event(pause_switch));
+    //queue_audio(queue_audio.event(stopPlayNoteC));
+    while (true) {
+        if (mode != mode_tmp || pause != pause_tmp)
+            queue_uLCD.call(uLCD_display);
+        mode_tmp = mode;
+        pause_tmp = pause;
+        wait(0.1);
+    }
+    /*// Create an area of memory to use for input, output, and intermediate arrays.
     // The size of this will depend on the model you're using, and may need to be
     // determined by experimentation.
     constexpr int kTensorArenaSize = 60 * 1024;
@@ -135,6 +169,130 @@ int main(int argc, char* argv[]) {
         // Produce an output
         if (gesture_index < label_num) {
             error_reporter->Report(config.output_message[gesture_index]);
+        }
+        wait(1);
+    }*/
+}
+
+void mode_change() {
+    if (pause) {
+        if (mode == 3) {
+            mode = 0;
+        } else {
+            mode++;
+        }
+    }
+}
+
+void pause_switch() {
+    pause = !pause;
+}
+
+void uLCD_display() {
+    uLCD.cls();
+    if (pause) {
+        switch (mode) {
+        case 1: uLCD.printf("Now is forward mode.\n");
+            break;
+        case 2: uLCD.printf("Now is backward mode.\n");
+            break;
+        case 3: uLCD.printf("Now is Taiko mode.\n");
+            break;
+        default: uLCD.printf("Now is change songs mode.\n");
+            break;
+        }
+    } else {
+        if (mode == 3) {
+            uLCD.printf("You are playing Taiko!");
+        } else {
+            uLCD.printf("You are playing the song!");
+        }
+    }
+}
+
+// Return the result of the last prediction
+int PredictGesture(float* output) {
+    // How many times the most recent gesture has been matched in a row
+    static int continuous_count = 0;
+    // The result of the last prediction
+    static int last_predict = -1;
+    // Find whichever output has a probability > 0.8 (they sum to 1)
+    int this_predict = -1;
+    for (int i = 0; i < label_num; i++) {
+        if (output[i] > 0.8) this_predict = i;
+    }
+
+    // No gesture was detected above the threshold
+    if (this_predict == -1) {
+        continuous_count = 0;
+        last_predict = label_num;
+        return label_num;
+    }
+    if (last_predict == this_predict) {
+        continuous_count += 1;
+    } else {
+        continuous_count = 0;
+    }
+    last_predict = this_predict;
+
+    // If we haven't yet had enough consecutive matches for this gesture,
+    // report a negative result
+    if (continuous_count < config.consecutiveInferenceThresholds[this_predict]) {
+        return label_num;
+    }
+    // Otherwise, we've seen a positive result, so clear all our variables
+    // and report it
+    continuous_count = 0;
+    last_predict = -1;
+    return this_predict;
+}
+
+void playNote() {
+    while (true) {
+        for (int i = 0; i < duration * 1000; i++) {
+            for (int i = 0; i < kAudioTxBufferSize; i++) {
+                waveform[i] = (int16_t) (sin((double)i * 2. * M_PI / (double) (kAudioSampleFrequency / freqency)) * ((1<<16) - 1)) * 0.5;
+            }
+            // the loop below will play the note for the duration of 1s
+            for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize; ++j) {
+                audio.spk.play(waveform, kAudioTxBufferSize);
+            }
+        }
+    }
+}
+
+void Node_set(float freq, float dura) {
+    freqency = freq;
+    duration = 1.0 / dura;
+    wait(1.0 / dura);
+    freqency = 0;
+}
+
+void load_note() {
+    int i = 0;
+    int j = 0;
+    int note_counter = 0;
+    char serialInBuffer[5];
+    char i_in[1];
+    char j_in[2];
+    char dura_in[2];
+    serialCount = 0;
+    while(true) {
+        if(pc.readable()) {
+            serialInBuffer[serialCount] = pc.getc();
+            serialCount++;
+            if(serialCount == 5) {
+                i_in[0] = serialInBuffer[0];
+                j_in[0] = serialInBuffer[1];
+                j_in[1] = serialInBuffer[2];
+                dura_in[0] = serialInBuffer[3];
+                dura_in[1] = serialInBuffer[4];
+                i = (int) atoi(i_in);
+                j = (int) atoi(j_in);
+                Node_set(note[i][j], atoi(dura_in));
+                serialCount = 0;
+                note_counter++;
+            }
         }
     }
 }
