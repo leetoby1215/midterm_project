@@ -28,7 +28,7 @@ static int m_addr = FXOS8700CQ_SLAVE_ADDR1;
 static uint8_t data[2], res[6];
 static int16_t acc16;
 // A buffer holding the last 200 sets of 3-channel values
-static float save_data[600] = {0.0};
+static float save_data[200] = {0.0};
 // Most recent position in the save_data buffer
 int begin_index = 0;
 // True if there is not yet enough data to run inference

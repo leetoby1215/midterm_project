@@ -13,32 +13,43 @@
 #include <cmath>
 
 #define bufferLength (32)
+#define signalLength (4096)
 #define note_limit (1024)
 
 DA7212 audio;
+
 Serial pc(USBTX, USBRX);
 uLCD_4DGL uLCD(D1, D0, D2);
-DigitalOut green_led(LED2);
+DigitalOut led1(LED1);
 InterruptIn btn1(SW2);
 InterruptIn btn2(SW3);
-EventQueue queue_uLCD(32 * EVENTS_EVENT_SIZE);
+EventQueue queue_uLCD_display(32 * EVENTS_EVENT_SIZE);
+EventQueue queue_uLCD_control(32 * EVENTS_EVENT_SIZE);
 EventQueue queue_audio(32 * EVENTS_EVENT_SIZE);
 EventQueue queue_load_note(32 * EVENTS_EVENT_SIZE);
-Thread thread_uLCD;
-Thread thread_audio;
-Thread thread_load_note;
-
-int16_t waveform[kAudioTxBufferSize];
-char serialInBuffer[bufferLength];
-int serialCount = 0;
+EventQueue queue_play_song(32 * EVENTS_EVENT_SIZE);
+EventQueue queue_modesong_select(32 * EVENTS_EVENT_SIZE);
+Thread thread_uLCD_display(osPriorityNormal);
+Thread thread_uLCD_control(osPriorityNormal);
+Thread thread_audio(osPriorityNormal);
+Thread thread_load_note(osPriorityNormal);
+Thread thread_play_song(osPriorityNormal);
+Thread thread_modesong_select(osPriorityNormal);
+Thread thread_DNN(osPriorityNormal, 4 * 1024);
 
 int mode = 0;
 int mode_tmp = mode;
+int song = 0;
+int song_tmp = song;
 bool pause = true;
 bool pause_tmp = pause;
+bool is_select = false;
+bool is_select_tmp = is_select;
 
-float freqency;
-float duration;
+float Signal[signalLength];
+int16_t waveform[kAudioTxBufferSize];
+char serialInBuffer[bufferLength];
+int serialCount = 0;
 
 int note[4][12] {
     {65, 69, 73, 78, 82, 87, 93, 98, 104, 110, 117, 123},
@@ -47,57 +58,57 @@ int note[4][12] {
     {523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988}
 };
 
-char song_name[10][18];
-int song_lengh[10];
-int song[2][note_limit];
+int song_note[3][48];
 
-void mode_change();
+void DNN();
 void pause_switch();
+void select_switch();
+void uLCD_control();
 void uLCD_display();
+void modesong_select();
 int PredictGesture(float* output);
 
-void playNote();
-
-void Node_set(float freq, float dura);
-void load_note();
+void playNote(int freq);
+void loadSignal();
+void play_song();
 
 int main(int argc, char* argv[]) {
-    
-    thread_uLCD.start(callback(&queue_uLCD, &EventQueue::dispatch_forever));
+    led1 = true;
+    thread_uLCD_display.start(callback(&queue_uLCD_display, &EventQueue::dispatch_forever));
+    thread_uLCD_control.start(callback(&queue_uLCD_control, &EventQueue::dispatch_forever));
     thread_audio.start(callback(&queue_audio, &EventQueue::dispatch_forever));
     thread_load_note.start(callback(&queue_load_note, &EventQueue::dispatch_forever));
+    thread_play_song.start(callback(&queue_play_song, &EventQueue::dispatch_forever));
+    thread_modesong_select.start(callback(&queue_modesong_select, &EventQueue::dispatch_forever));
 
-    queue_uLCD.call(uLCD_display);
-    queue_audio.call(playNote);
-    queue_load_note.call(load_note);
+    queue_uLCD_display.call(uLCD_display);
+    queue_uLCD_control.call(uLCD_control);
+    queue_load_note.call(loadSignal);
+    queue_play_song.call(play_song);
 
-    btn1.fall(queue_uLCD.event(mode_change));
-    btn2.fall(queue_uLCD.event(pause_switch));
-    //queue_audio(queue_audio.event(stopPlayNoteC));
+    btn1.fall(queue_uLCD_display.event(select_switch));
+    btn2.fall(queue_uLCD_display.event(pause_switch));
+
+    thread_DNN.start(&DNN);
+
     while (true) {
-        if (mode != mode_tmp || pause != pause_tmp)
-            queue_uLCD.call(uLCD_display);
-        mode_tmp = mode;
-        pause_tmp = pause;
-        wait(0.1);
+        wait(1);
     }
-    /*// Create an area of memory to use for input, output, and intermediate arrays.
-    // The size of this will depend on the model you're using, and may need to be
-    // determined by experimentation.
+}
+
+void initial() {
+
+}
+
+void DNN() {
     constexpr int kTensorArenaSize = 60 * 1024;
     uint8_t tensor_arena[kTensorArenaSize];
-
-    // Whether we should clear the buffer next time we fetch data
     bool should_clear_buffer = false;
     bool got_data = false;
-    // The gesture index of the prediction
     int gesture_index;
-
-    // Set up logging.
     static tflite::MicroErrorReporter micro_error_reporter;
     tflite::ErrorReporter* error_reporter = &micro_error_reporter;
-    // Map the model into a usable data structure. This doesn't involve any
-    // copying or parsing, it's a very lightweight operation.
+
     const tflite::Model* model = tflite::GetModel(g_magic_wand_model_data);
     if (model->version() != TFLITE_SCHEMA_VERSION) {
         error_reporter->Report(
@@ -106,27 +117,18 @@ int main(int argc, char* argv[]) {
             model->version(), TFLITE_SCHEMA_VERSION);
         return -1;
     }
-
-    // Pull in only the operation implementations we need.
-    // This relies on a complete list of all the ops needed by this graph.
-    // An easier approach is to just use the AllOpsResolver, but this will
-    // incur some penalty in code space for op implementations that are not
-    // needed by this graph.
     static tflite::MicroOpResolver<6> micro_op_resolver;
-    micro_op_resolver.AddBuiltin(tflite::BuiltinOperator_RESHAPE, tflite::ops::micro::Register_RESHAPE(), 1);
-    micro_op_resolver.AddBuiltin(tflite::BuiltinOperator_DEPTHWISE_CONV_2D, tflite::ops::micro::Register_DEPTHWISE_CONV_2D());
-    micro_op_resolver.AddBuiltin(tflite::BuiltinOperator_MAX_POOL_2D, tflite::ops::micro::Register_MAX_POOL_2D());
-    micro_op_resolver.AddBuiltin(tflite::BuiltinOperator_CONV_2D, tflite::ops::micro::Register_CONV_2D());
-    micro_op_resolver.AddBuiltin(tflite::BuiltinOperator_FULLY_CONNECTED, tflite::ops::micro::Register_FULLY_CONNECTED());
-    micro_op_resolver.AddBuiltin(tflite::BuiltinOperator_SOFTMAX, tflite::ops::micro::Register_SOFTMAX());
+        micro_op_resolver.AddBuiltin(tflite::BuiltinOperator_RESHAPE, tflite::ops::micro::Register_RESHAPE(), 1);
+        micro_op_resolver.AddBuiltin(tflite::BuiltinOperator_DEPTHWISE_CONV_2D, tflite::ops::micro::Register_DEPTHWISE_CONV_2D());
+        micro_op_resolver.AddBuiltin(tflite::BuiltinOperator_MAX_POOL_2D, tflite::ops::micro::Register_MAX_POOL_2D());
+        micro_op_resolver.AddBuiltin(tflite::BuiltinOperator_CONV_2D, tflite::ops::micro::Register_CONV_2D());
+        micro_op_resolver.AddBuiltin(tflite::BuiltinOperator_FULLY_CONNECTED, tflite::ops::micro::Register_FULLY_CONNECTED());
+        micro_op_resolver.AddBuiltin(tflite::BuiltinOperator_SOFTMAX, tflite::ops::micro::Register_SOFTMAX());
 
-    // Build an interpreter to run the model with
     static tflite::MicroInterpreter static_interpreter(model, micro_op_resolver, tensor_arena, kTensorArenaSize, error_reporter);
     tflite::MicroInterpreter* interpreter = &static_interpreter;
-    // Allocate memory from the tensor_arena for the model's tensors
     interpreter->AllocateTensors();
 
-    // Obtain pointer to the model's input tensor
     TfLiteTensor* model_input = interpreter->input(0);
     if ((model_input->dims->size != 4) || (model_input->dims->data[0] != 1) ||
         (model_input->dims->data[1] != config.seq_length) ||
@@ -145,60 +147,102 @@ int main(int argc, char* argv[]) {
     error_reporter->Report("Set up successful...\n");
 
     while (true) {
-        // Attempt to read new data from the accelerometer
         got_data = ReadAccelerometer(error_reporter, model_input->data.f, input_length, should_clear_buffer);
-
-        // If there was no new data,
-        // don't try to clear the buffer again and wait until next time
         if (!got_data) {
             should_clear_buffer = false;
             continue;
         }
-        // Run inference, and report any error
         TfLiteStatus invoke_status = interpreter->Invoke();
         if (invoke_status != kTfLiteOk) {
             error_reporter->Report("Invoke failed on index: %d\n", begin_index);
             continue;
         }
-
-        // Analyze the results to obtain a prediction
         gesture_index = PredictGesture(interpreter->output(0)->data.f);
-        // Clear the buffer next time we read data
         should_clear_buffer = gesture_index < label_num;
-
-        // Produce an output
         if (gesture_index < label_num) {
             error_reporter->Report(config.output_message[gesture_index]);
-        }
-        wait(1);
-    }*/
-}
-
-void mode_change() {
-    if (pause) {
-        if (mode == 3) {
-            mode = 0;
-        } else {
-            mode++;
         }
     }
 }
 
+void uLCD_control() {
+    while (true) {
+        if (mode != mode_tmp || pause != pause_tmp || is_select != is_select_tmp || song != song_tmp)
+            queue_uLCD_display.call(uLCD_display);
+        mode_tmp = mode;
+        pause_tmp = pause;
+        is_select_tmp = is_select;
+        song_tmp = song;
+        wait(0.1);
+    }
+}
+
+void select_switch() {
+    if (pause)
+        is_select = !is_select;
+}
+
 void pause_switch() {
-    pause = !pause;
+    if (is_select)
+        pause = !pause;
+    if (pause) {
+        queue_audio.call(playNote, 0);
+    } else {
+        for (int i = 0; i < 999; i++) {
+            queue_audio.call(playNote, note[2][4]);
+        }
+        queue_audio.call(playNote, 0);
+    }
+
 }
 
 void uLCD_display() {
     uLCD.cls();
     if (pause) {
         switch (mode) {
-        case 1: uLCD.printf("Now is forward mode.\n");
+        case 1:
+            if (is_select) {
+                uLCD.printf("You select forward mode.\n");
+            } else {
+                uLCD.printf("Now is forward mode.\n");
+            }
             break;
-        case 2: uLCD.printf("Now is backward mode.\n");
+        case 2:
+            if (is_select) {
+                uLCD.printf("You select backward mode.\n");
+            } else {
+                uLCD.printf("Now is backward mode.\n");
+            }
             break;
-        case 3: uLCD.printf("Now is Taiko mode.\n");
+        case 3:
+            if (is_select) {
+                uLCD.printf("You select Taiko mode.\n");
+            } else {
+                uLCD.printf("Now is Taiko mode.\n");
+            }
             break;
-        default: uLCD.printf("Now is change songs mode.\n");
+        default:
+            if (is_select) {
+                uLCD.printf("You select change songs mode.\n");
+                switch (song) {
+                case 0:
+                    uLCD.printf("You select song0.\n");
+                    break;
+                case 1:
+                    uLCD.printf("You select song1.\n");
+                    break;
+                case 2:
+                    uLCD.printf("You select song2.\n");
+                    break;
+                case 3:
+                    uLCD.printf("You select song3.\n");
+                    break;
+                default:
+                    break;
+                }
+            } else {
+                uLCD.printf("Now is change songs mode.\n");
+            }
             break;
         }
     } else {
@@ -210,19 +254,14 @@ void uLCD_display() {
     }
 }
 
-// Return the result of the last prediction
 int PredictGesture(float* output) {
-    // How many times the most recent gesture has been matched in a row
     static int continuous_count = 0;
-    // The result of the last prediction
     static int last_predict = -1;
-    // Find whichever output has a probability > 0.8 (they sum to 1)
     int this_predict = -1;
     for (int i = 0; i < label_num; i++) {
         if (output[i] > 0.8) this_predict = i;
     }
 
-    // No gesture was detected above the threshold
     if (this_predict == -1) {
         continuous_count = 0;
         last_predict = label_num;
@@ -235,64 +274,91 @@ int PredictGesture(float* output) {
     }
     last_predict = this_predict;
 
-    // If we haven't yet had enough consecutive matches for this gesture,
-    // report a negative result
     if (continuous_count < config.consecutiveInferenceThresholds[this_predict]) {
         return label_num;
     }
-    // Otherwise, we've seen a positive result, so clear all our variables
-    // and report it
+
     continuous_count = 0;
     last_predict = -1;
     return this_predict;
 }
 
-void playNote() {
-    while (true) {
-        for (int i = 0; i < duration * 1000; i++) {
-            for (int i = 0; i < kAudioTxBufferSize; i++) {
-                waveform[i] = (int16_t) (sin((double)i * 2. * M_PI / (double) (kAudioSampleFrequency / freqency)) * ((1<<16) - 1)) * 0.5;
-            }
-            // the loop below will play the note for the duration of 1s
-            for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize; ++j) {
-                audio.spk.play(waveform, kAudioTxBufferSize);
-            }
-        }
+void playNote(int freq) {
+    for (int i = 0; i < kAudioTxBufferSize; i++) {
+        waveform[i] = (int16_t) (Signal[(uint16_t) (i * freq * signalLength * 1.0 / kAudioSampleFrequency) % signalLength] * ((1<<16) - 1)) * 0.5;
+    }
+    for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize; ++j) {
+        audio.spk.play(waveform, kAudioTxBufferSize);
     }
 }
 
-void Node_set(float freq, float dura) {
-    freqency = freq;
-    duration = 1.0 / dura;
-    wait(1.0 / dura);
-    freqency = 0;
-}
-
-void load_note() {
+void loadSignal() {
     int i = 0;
-    int j = 0;
-    int note_counter = 0;
-    char serialInBuffer[5];
-    char i_in[1];
-    char j_in[2];
-    char dura_in[2];
     serialCount = 0;
-    while(true) {
+    audio.spk.pause();
+    while (i < signalLength) {
         if(pc.readable()) {
             serialInBuffer[serialCount] = pc.getc();
             serialCount++;
-            if(serialCount == 5) {
-                i_in[0] = serialInBuffer[0];
-                j_in[0] = serialInBuffer[1];
-                j_in[1] = serialInBuffer[2];
-                dura_in[0] = serialInBuffer[3];
-                dura_in[1] = serialInBuffer[4];
-                i = (int) atoi(i_in);
-                j = (int) atoi(j_in);
-                Node_set(note[i][j], atoi(dura_in));
+            if(serialCount == 7) {
+                serialInBuffer[serialCount] = '\0';
+                Signal[i] = (float) atof(serialInBuffer);
                 serialCount = 0;
-                note_counter++;
+                i++;
             }
         }
     }
+    queue_modesong_select.call(modesong_select);
+}
+
+void modesong_select() {
+    char control;
+    while (true) {
+        if(pc.readable()) {
+            control = pc.getc();
+            if (!is_select) {
+                if (control == 'w') {
+                    if (pause) {
+                        if (mode == 3) {
+                            mode = 0;
+                        } else {
+                            mode++;
+                        }
+                    }
+                }
+                if (control == 's') {
+                    if (pause) {
+                        if (mode == 0) {
+                            mode = 3;
+                        } else {
+                            mode--;
+                        }
+                    }
+                }
+            }
+            if (is_select && mode == 0) {
+                if (control == 'w') {
+                    if (pause) {
+                        if (song == 3) {
+                            song = 0;
+                        } else {
+                            song++;
+                        }
+                    }
+                }
+                if (control == 's') {
+                    if (pause) {
+                        if (song == 0) {
+                            song = 3;
+                        } else {
+                            song--;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void play_song() {
 }
