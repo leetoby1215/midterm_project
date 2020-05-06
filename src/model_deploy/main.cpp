@@ -35,7 +35,7 @@ Thread thread_audio(osPriorityNormal);
 Thread thread_load_note(osPriorityNormal);
 Thread thread_play_song(osPriorityNormal);
 Thread thread_modesong_select(osPriorityNormal);
-Thread thread_DNN(osPriorityNormal, 4 * 1024);
+Thread thread_DNN(osPriorityNormal);
 
 int mode = 0;
 int mode_tmp = mode;
