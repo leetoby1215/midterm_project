@@ -2,7 +2,8 @@
 #include "config.h"
 #include "magic_wand_model_data.h"
 #include "uLCD_4DGL.h"
-
+#include "DA7212.h"
+#include <cmath>
 #include "tensorflow/lite/c/common.h"
 #include "tensorflow/lite/micro/kernels/micro_ops.h"
 #include "tensorflow/lite/micro/micro_error_reporter.h"
@@ -11,14 +12,30 @@
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/version.h"
 
+#define standard_note_length 0.2
+
+DA7212 audio;
+
 uLCD_4DGL uLCD(D1, D0, D2);
 Serial pc(USBTX, USBRX);
 InterruptIn sw2(SW2);
 InterruptIn sw3(SW3);
-EventQueue queue_uLCD(32 * EVENTS_EVENT_SIZE);
+
+Timer debounce;
+
+EventQueue queue_sw3;
+EventQueue queue_sw3_1;
+EventQueue queue_sw3_2;
+EventQueue queue_uLCD;
+EventQueue queue_audio;
 
 Thread thread_DNN;
+Thread thread_select_detect;
+Thread thread_sw3;
+Thread thread_sw3_1;
+Thread thread_sw3_2;
 Thread thread_uLCD;
+Thread thread_audio;
 
 /*****************************************************************************/
 constexpr int kTensorArenaSize = 60 * 1024;
@@ -34,19 +51,182 @@ tflite::MicroInterpreter* interpreter;
 TfLiteTensor* model_input;
 int input_length;
 /*****************************************************************************/
-int mode_index;
-int song_index;
+int mode_index = 0;
+int mode_index_tmp = mode_index;
+int song_index = 0;
+int song_index_tmp = song_index;
+bool is_select = false;
+bool is_select_tmp = is_select;
+bool pause = true;
+bool pause_tmp = pause;
 /*****************************************************************************/
+int16_t waveform[kAudioTxBufferSize];
+int song[42] = {
+    261, 261, 392, 392, 440, 440, 392,
+    349, 349, 330, 330, 294, 294, 261,
+    392, 392, 349, 349, 330, 330, 294,
+    392, 392, 349, 349, 330, 330, 294,
+    261, 261, 392, 392, 440, 440, 392,
+    349, 349, 330, 330, 294, 294, 261};
+int noteLength[42] = {
+    1, 1, 1, 1, 1, 1, 2,
+    1, 1, 1, 1, 1, 1, 2,
+    1, 1, 1, 1, 1, 1, 2,
+    1, 1, 1, 1, 1, 1, 2,
+    1, 1, 1, 1, 1, 1, 2,
+    1, 1, 1, 1, 1, 1, 2};
+/*****************************************************************************/
+
 /*********DNN FUNCTIONS*********/
 void initial();
 void DNN();
 int PredictGesture(float* output);
+/*********SELECT FUNCTIONS*********/
+void select_detect();
+void select_switch();
+void pause_switch();
+void pause_switch_1();
+void pause_switch_2();
+/*********uLCD PISPLAY FINCTIONS*********/
+void uLCD_display(); 
+/*********AUDIO FUNCTIONS*********/
+void playNote(int freq);
+
 
 int main(int argc, char* argv[]) {
     initial();
+    debounce.start();   
     thread_DNN.start(&DNN);
+    thread_select_detect.start(&select_detect);
+    thread_sw3.start(callback(&queue_sw3, &EventQueue::dispatch_forever));
+    thread_sw3_1.start(callback(&queue_sw3_1, &EventQueue::dispatch_forever));
+    thread_sw3_2.start(callback(&queue_sw3_2, &EventQueue::dispatch_forever));
+    thread_uLCD.start(callback(&queue_uLCD, &EventQueue::dispatch_forever));
+    thread_audio.start(callback(&queue_audio, &EventQueue::dispatch_forever));
+    queue_uLCD.call(uLCD_display);
+    sw2.fall(&select_switch);
+    sw3.fall(queue_sw3.event(pause_switch));
     while (true) {
         wait(1);
+    }
+}
+
+void playNote(int freq) {
+    for (int i = 0; i < kAudioTxBufferSize; i++) {
+        waveform[i] = (int16_t) (sin((double)i * 2. * M_PI / (double) (kAudioSampleFrequency / freq)) * ((1<<16) - 1)) * 0.005;
+    }
+    audio.spk.play(waveform, kAudioTxBufferSize);
+}
+
+void select_switch() {
+    if (debounce.read_ms() > 500) {
+        if (pause)
+            is_select = !is_select;
+        debounce.reset();
+    }
+}
+
+void pause_switch() {
+    if (debounce.read_ms() > 500) {
+        queue_sw3_1.call(pause_switch_1);
+        queue_sw3_2.call(pause_switch_2);
+        debounce.reset();
+    }
+}
+
+void pause_switch_1() {
+    if (is_select)
+        pause = !pause;
+}
+
+void pause_switch_2() {
+    int length;
+    if (!pause) {
+        for(int i = 0; i < 42; i++) {
+            if (pause)
+                break;
+            length= noteLength[i];
+            while(length > 0) {
+                for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize * standard_note_length * 0.9 * length; ++j) {
+                    queue_audio.call(playNote, song[i]);
+                }
+                if (length == 1) {
+                    queue_audio.call(playNote, 1);
+                }
+                length--;
+                wait(standard_note_length);
+            }
+        }
+    }
+}
+
+void uLCD_display() {
+    uLCD.cls();
+    if (pause) {
+        switch (mode_index) {
+        case 1:
+            if (is_select) {
+                uLCD.printf("You select forward mode.\n");
+            } else {
+                uLCD.printf("Now is forward mode.\n");
+            }
+            break;
+        case 2:
+            if (is_select) {
+                uLCD.printf("You select backward mode.\n");
+            } else {
+                uLCD.printf("Now is backward mode.\n");
+            }
+            break;
+        case 3:
+            if (is_select) {
+                uLCD.printf("You select Taiko mode.\n");
+            } else {
+                uLCD.printf("Now is Taiko mode.\n");
+            }
+            break;
+        default:
+            if (is_select) {
+                uLCD.printf("You select change songs mode.\n");
+                switch (song_index) {
+                case 0:
+                    uLCD.printf("You select song0.\n");
+                    break;
+                case 1:
+                    uLCD.printf("You select song1.\n");
+                    break;
+                case 2:
+                    uLCD.printf("You select song2.\n");
+                    break;
+                case 3:
+                    uLCD.printf("You select song3.\n");
+                    break;
+                default:
+                    break;
+                }
+            } else {
+                uLCD.printf("Now is change songs mode.\n");
+            }
+            break;
+        }
+    } else {
+        if (mode_index == 3) {
+            uLCD.printf("You are playing Taiko!");
+        } else {
+            uLCD.printf("You are playing the song!");
+        }
+    }
+}
+
+void select_detect() {
+    while (true) {
+        if (mode_index != mode_index_tmp || song_index != song_index_tmp || is_select != is_select_tmp || pause != pause_tmp)
+            queue_uLCD.call(uLCD_display);
+        mode_index_tmp = mode_index;
+        song_index_tmp = song_index;
+        is_select_tmp = is_select;
+        pause_tmp = pause;
+        wait_ms(100);
     }
 }
 
@@ -99,7 +279,28 @@ void DNN() {
         gesture_index = PredictGesture(interpreter->output(0)->data.f);
         should_clear_buffer = gesture_index < label_num;
         if (gesture_index < label_num) {
-            uLCD.printf("%d", gesture_index);
+            if (!is_select) {
+                if (gesture_index == 0) {
+                    if (pause) {
+                        if (mode_index == 3) {
+                            mode_index = 0;
+                        } else {
+                            mode_index++;
+                        }
+                    }
+                }
+            }
+            if (is_select && mode_index == 0) {
+                if (gesture_index == 0) {
+                    if (pause) {
+                        if (song_index == 3) {
+                            song_index = 0;
+                        } else {
+                            song_index++;
+                        }
+                    }
+                }
+            }
         }
     }
 }
