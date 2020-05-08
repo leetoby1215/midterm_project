@@ -1,6 +1,7 @@
 #include "accelerometer_handler.h"
 #include "config.h"
 #include "magic_wand_model_data.h"
+#include "note.h"
 #include "uLCD_4DGL.h"
 #include "DA7212.h"
 #include <cmath>
@@ -13,8 +14,6 @@
 #include "tensorflow/lite/version.h"
 
 #define standard_note_length 0.1
-#define song_number 3
-#define song_length 500
 
 DA7212 audio;
 
@@ -64,316 +63,6 @@ bool pause_tmp = pause;
 /*****************************************************************************/
 int16_t waveform[kAudioTxBufferSize];
 int length;
-char song_name[song_number][18] = {
-    "moonlight_0",
-    "moonlight_1",
-    "moonlight_2"
-};
-
-int note[6][12] {
-    33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 62,
-    65, 69, 73, 78, 82, 87, 93, 98, 104, 110, 117, 123,
-    131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247,
-    262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494,
-    523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988,
-    1047, 1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976
-};
-
-int song[song_number][song_length] = {{
-    // 1
-    note[1][1], note[1][8], note[2][1], note[2][4], note[2][8], note[2][1], note[2][4], note[2][8],
-    note[3][1], note[2][4], note[2][8], note[3][1], note[3][4], note[2][8], note[3][1], note[3][4],
-    note[3][8], note[3][1], note[3][4], note[3][8], note[4][1], note[3][4], note[3][8], note[4][1],
-    note[4][4], note[3][8], note[4][1], note[4][4], note[4][8], note[4][8],
-    // 3
-    note[1][0], note[1][8], note[2][0], note[2][3], note[2][8], note[2][0], note[2][3], note[2][8],
-    note[3][0], note[2][3], note[2][8], note[3][0], note[3][3], note[2][8], note[3][0], note[3][3],
-    note[3][8], note[3][0], note[3][3], note[3][8], note[4][0], note[3][3], note[3][8], note[4][0],
-    note[4][3], note[3][8], note[4][0], note[4][3], note[4][8], note[4][8],
-    // 5
-    note[0][11], note[2][1], note[2][5], note[2][8], note[3][1], note[2][5], note[2][8], note[3][1],
-    note[3][5], note[2][8], note[3][1], note[3][5], note[2][8], note[3][1], note[3][5], note[3][8],
-    note[4][1], note[3][5], note[3][8], note[4][1], note[4][5], note[3][8], note[4][1], note[4][5],
-    note[4][8], note[4][1], note[4][5], note[4][8], note[5][1], note[5][1],
-    // 7
-    note[0][8], note[1][1], note[1][6], note[1][9], note[3][1], note[3][1], note[3][6], note[3][8],
-    note[4][1], note[4][1], note[4][6], note[4][8], note[5][1], note[5][1],
-    note[0][8], note[1][1], note[1][4], note[1][7], note[3][1], note[3][1], note[3][4], note[3][7],
-    note[4][1], note[4][1], note[4][4], note[4][7], note[5][1], note[5][1],
-    // 9
-    note[5][0], note[3][8], note[4][8], note[3][8], note[4][8], note[3][10], note[4][8],
-    note[4][0], note[4][8], note[5][1], note[4][8], note[4][3], note[4][8], note[4][0], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][6], note[4][8], note[4][4], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][0], note[4][8], note[3][9], note[4][7],
-    // 11
-    note[3][8], note[5][0], note[3][8], note[4][8], note[3][8], note[4][8], note[3][10], note[4][8],
-    note[4][0], note[4][8], note[5][1], note[4][8], note[4][3], note[4][8], note[4][0], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][6], note[4][8], note[4][4], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][0], note[4][8], note[3][9], note[4][7],
-    // 13
-    note[3][8], note[4][8], note[3][9], note[4][7], note[3][8], note[4][8], note[3][9], note[4][7],
-    note[3][8], note[4][8], note[3][9], note[4][7], note[3][8], note[4][8], note[3][9], note[4][7],
-    note[3][8], note[2][8],
-    // 15
-    note[1][1], note[1][8], note[2][1], note[2][4], note[2][8], note[2][1], note[2][4], note[2][8],
-    note[3][1], note[2][4], note[2][8], note[3][1], note[3][4], note[2][8], note[3][1], note[3][4],
-    note[3][8], note[3][1], note[3][4], note[3][8], note[4][1], note[3][4], note[3][8], note[4][1],
-    note[4][4], note[4][4], note[4][8], note[5][1], note[5][4], note[5][4],
-    // 17
-    note[0][10], note[1][4], note[1][7], note[3][1], note[3][4], note[1][7], note[3][1], note[3][4],
-    note[3][7], note[3][1], note[3][4], note[3][7], note[4][1], note[3][4], note[3][7], note[4][1],
-    note[4][4], note[3][7], note[4][1], note[4][4], note[4][7], note[4][1], note[4][4], note[4][7],
-    note[5][1], note[4][4], note[4][7], note[5][1], note[5][4], note[5][4],
-    // 19
-    note[0][7], note[1][3], note[2][10], note[3][1], note[3][3], note[2][10], note[3][1], note[3][3],
-    note[3][10], note[3][1], note[3][3], note[3][10], note[4][1], note[3][3], note[3][10], note[4][1],
-    note[4][3], note[3][10], note[4][1], note[4][3], note[4][10], note[4][1], note[4][3], note[4][10],
-    note[5][1], note[4][10], note[4][3], note[4][1], note[4][10], note[4][3], note[4][1], note[3][10]
-    }, {
-    // 21
-    note[3][11], note[2][3], note[1][11], note[2][3], note[4][3], note[2][3], note[1][11], note[2][3],
-    note[1][8], note[2][3], note[1][11], note[2][3], note[3][11], note[2][3], note[1][11], note[3][8],
-    note[3][8], note[2][3], note[2][1], note[2][3], note[3][7], note[2][3], note[2][1], note[2][3],
-    note[1][10], note[2][3], note[3][7], note[2][3], note[4][3], note[2][3], note[3][7], note[2][3],
-    // 23
-    note[3][10], note[2][3], note[1][11], note[2][3], note[3][8], note[2][3], note[1][11], note[2][3],
-    note[1][11], note[2][3], note[3][8], note[2][3], note[4][3], note[2][3], note[1][11], note[3][8],
-    note[3][11], note[2][3], note[1][7], note[2][3], note[3][10], note[2][3], note[1][7], note[2][3],
-    note[1][7], note[2][3], note[3][10], note[2][3], note[4][3], note[2][3], note[1][7], note[3][10],
-    // 25
-    note[3][11], note[2][3], note[4][3], note[2][3], note[1][8], note[2][3], note[4][3], note[2][3],
-    note[1][8], note[2][3], note[4][3], note[2][3], note[3][11], note[2][3], note[3][8], note[2][3],
-    note[3][8], note[2][3], note[3][7], note[2][3], note[1][10], note[2][3], note[3][7], note[2][3],
-    note[1][10], note[2][3], note[3][7], note[2][3], note[4][3], note[2][3], note[3][7], note[2][3],
-    // 27
-    note[3][10], note[2][3], note[3][8], note[2][3], note[1][10], note[2][3], note[3][8], note[2][3],
-    note[1][10], note[2][3], note[3][8], note[2][3], note[4][3], note[2][3], note[3][8], note[2][3],
-    note[3][11], note[2][3], note[3][10], note[2][3], note[1][7], note[2][3], note[3][10], note[2][3],
-    note[1][7], note[2][3], note[3][10], note[2][3], note[4][3], note[2][3], note[3][10], note[2][3],
-    // 29
-    note[4][0], note[2][3], note[1][8], note[2][3], note[1][6], note[2][3], note[1][8], note[2][3],
-    note[4][1], note[2][1], note[1][8], note[2][1], note[1][4], note[2][1], note[1][8], note[2][1],
-    note[3][10], note[3][11], note[3][8], note[3][10], note[3][11], note[1][11], note[1][6], note[1][11],
-    note[1][3], note[1][11], note[1][6], note[1][11], note[1][3], note[1][11], note[1][6], note[1][11],
-    // 31
-    note[3][8], note[1][11], note[1][4], note[1][11], note[1][2], note[1][11], note[1][4], note[1][11],
-    note[3][9], note[1][8], note[1][4], note[1][8], note[1][1], note[1][8], note[1][4], note[1][8],
-    note[3][7], note[3][8], note[3][5], note[3][7], note[3][8], note[1][8], note[1][3], note[1][8],
-    note[0][11], note[1][8], note[1][3], note[1][8], note[0][11], note[1][8], note[1][3], note[1][8],
-    // 33
-    note[3][9],
-    note[4][4], note[4][6], note[4][8], note[4][9], note[4][11], note[5][1], note[4][11],
-    note[4][9], note[4][4], note[4][6], note[4][8], note[4][9], note[4][11], note[5][1], note[4][11],
-    note[4][9], note[4][4], note[4][6], note[4][8], note[4][9], note[4][11], note[5][1], note[4][11],
-    // 35
-    note[4][9], note[4][4], note[4][6], note[4][8], note[4][9], note[4][11], note[5][1], note[5][2],
-    note[5][4], note[5][3], note[5][4], note[5][3], note[5][4], note[5][1], note[4][11], note[4][9],
-    note[4][8], note[2][3], note[1][11], note[2][3], note[1][6], note[2][3], note[1][11], note[2][3],
-    note[4][10], note[4][11], note[4][10], note[4][11], note[4][10], note[4][11], note[4][8], note[4][10],
-    // 37
-    note[4][8], 1, note[3][9],
-    note[3][4], note[3][6], note[3][8], note[3][9], note[3][11], note[4][1], note[3][11],
-    note[3][9], note[3][4], note[3][6], note[3][8], note[3][9], note[3][11], note[4][1], note[3][11],
-    note[3][9], note[3][4], note[3][6], note[3][8], note[3][9], note[3][11], note[4][1], note[3][11],
-    // 39
-    note[3][9], note[3][4], note[3][6], note[3][8], note[3][9], note[3][11], note[4][1], note[3][11],
-    note[3][9], note[3][4], note[3][6], note[3][8], note[3][9], note[3][11], note[4][1], note[3][11],
-    note[3][9], note[3][4], note[3][6], note[3][8], note[3][9], note[3][11], note[4][1], note[4][2],
-    note[4][4], note[4][6], note[4][8], note[4][9], note[4][11], note[5][1], note[5][2], note[5][3],
-    // 41
-    note[5][4], note[2][8], note[2][4], note[2][8], note[2][1], note[2][8], note[2][4], note[2][8],
-    note[4][8], note[2][11], note[2][5], note[2][11], note[2][2], note[2][11], note[2][5], note[2][11],
-    note[4][11], note[2][11], note[2][8], note[2][11], note[2][3], note[2][11], note[2][8], note[2][11],
-    note[3][7], note[2][3], note[2][2], note[2][3], note[2][2], note[2][3], note[2][2], note[2][3]
-    }, {
-    // 43
-    note[3][8], note[3][11], note[3][11], note[3][11],
-    note[3][11], note[3][11], note[3][10], note[3][8],
-    note[3][7], note[4][3], note[4][3], note[4][3],
-    note[4][3], note[4][3], note[4][3], note[4][3],
-    // 45
-    note[3][8], note[3][11], note[3][11], note[3][11],
-    note[3][11], note[3][11], note[3][10], note[3][8],
-    note[3][7], note[4][3], note[4][3], note[4][3],
-    note[4][3], note[4][3], note[4][3], note[4][3],
-    // 47
-    note[4][3], note[4][3], note[4][3], note[3][11],
-    note[2][1], note[4][4], note[4][4], note[4][1],
-    note[2][3], note[4][3], note[4][3], note[3][11],
-    note[2][3], note[4][3], note[4][3], note[3][9],
-    // 49
-    note[3][11], note[4][11], note[4][11], note[4][11],
-    note[4][11], note[4][11], note[4][10], note[4][8],
-    note[4][7], note[5][4], note[5][4], note[5][4],
-    note[5][4], note[5][4], note[5][3], note[5][1],
-    // 51
-    note[4][11], note[4][11], note[4][11], note[4][11],
-    note[4][11], note[4][11], note[4][10], note[4][8],
-    note[4][7], note[5][4], note[5][4], note[5][4],
-    note[5][4], note[5][4], note[5][3], note[5][1],
-    // 53
-    note[4][11], note[4][11], note[4][11], note[5][3],
-    note[2][1], note[5][1], note[5][1], note[5][4],
-    note[2][3], note[4][11], note[4][11], note[5][3],
-    note[2][1], note[4][10], note[4][10], note[5][3],
-    // 55
-    note[1][11], note[4][11], note[4][11], note[5][3],
-    note[2][1], note[4][9], note[4][9], note[5][1],
-    note[2][3], note[4][8], note[4][8], note[4][11],
-    note[2][3], note[4][7], note[4][7], note[4][10],
-    // 57
-    0
-    } // note[][], note[][], note[][], note[][], note[][], note[][], note[][], note[][],
-};
-
-int noteLength[song_number][song_length] = {{
-    // 1
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-    // 3
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-    // 5
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-    // 7
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-    // 9
-    2, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    // 11
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    // 13
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    4, 12,
-    // 15
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-    // 17
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-    // 19
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    0
-    }, {
-    // 21
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    // 23
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    // 25
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    // 27
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    // 29
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    // 31
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    // 33
-    9,
-    1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    // 35
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    // 37
-    1, 3, 5,
-    1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    // 39
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    // 41
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    0
-    }, {
-    // 43
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    // 45
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    // 47
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    // 49
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    // 51
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    // 53
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    // 55
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    2, 2, 2, 2,
-    // 57
-    0
-    }
-};
 /*****************************************************************************/
 
 /*********DNN FUNCTIONS*********/
@@ -481,48 +170,54 @@ void pause_switch_2() {
             pause = true;
             break;
         case 1:
-            for (song_index = 0; song_index < song_number; song_index++) {
-                for(int i = 0; i < song_length; i++) {
-                    if (pause)
-                        break;
-                    length = noteLength[song_index][i];
-                    if (length == 0)
-                        break;
-                    while(length > 0) {
-                        for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize * standard_note_length * 0.1 * length; ++j) {
-                            queue_audio.call(playNote, song[song_index][i]);
+            while (true) {
+                for (song_index = 0; song_index < song_number; song_index++) {
+                    for(int i = 0; i < song_length; i++) {
+                        if (pause)
+                            break;
+                        length = noteLength[song_index][i];
+                        if (length == 0)
+                            break;
+                        while(length > 0) {
+                            for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize * standard_note_length * 0.1 * length; ++j) {
+                                queue_audio.call(playNote, song[song_index][i]);
+                            }
+                            if (length == 1) {
+                                queue_audio.call(playNote, 1);
+                            }
+                            length--;
+                            wait(standard_note_length);
                         }
-                        if (length == 1) {
-                            queue_audio.call(playNote, 1);
-                        }
-                        length--;
-                        wait(standard_note_length);
                     }
                 }
+                if (pause)
+                    break;
             }
-            pause = true;
             break;
         case 2:
-            for (song_index = song_number - 1; song_index >= 0; song_index--) {
-                for(int i = 0; i < song_length; i++) {
-                    if (pause)
-                        break;
-                    length = noteLength[song_index][i];
-                    if (length == 0)
-                        break;
-                    while(length > 0) {
-                        for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize * standard_note_length * 0.1 * length; ++j) {
-                            queue_audio.call(playNote, song[song_index][i]);
+            while (true) {
+                for (song_index = song_number - 1; song_index >= 0; song_index--) {
+                    for(int i = 0; i < song_length; i++) {
+                        if (pause)
+                            break;
+                        length = noteLength[song_index][i];
+                        if (length == 0)
+                            break;
+                        while(length > 0) {
+                            for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize * standard_note_length * 0.1 * length; ++j) {
+                                queue_audio.call(playNote, song[song_index][i]);
+                            }
+                            if (length == 1) {
+                                queue_audio.call(playNote, 1);
+                            }
+                            length--;
+                            wait(standard_note_length);
                         }
-                        if (length == 1) {
-                            queue_audio.call(playNote, 1);
-                        }
-                        length--;
-                        wait(standard_note_length);
                     }
                 }
+                if (pause)
+                    break;
             }
-            pause = true;
             break;
         default:
             queue_audio.call(playNote, 1);

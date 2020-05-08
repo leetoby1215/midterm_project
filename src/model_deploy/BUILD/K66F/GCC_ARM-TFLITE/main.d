@@ -6,7 +6,7 @@ BUILD/K66F/GCC_ARM-TFLITE/main.o: main.cpp \
  tensorflowlite_mbed/tensorflow/lite/micro/compatibility.h \
  tensorflowlite_mbed/tensorflow/lite/micro/debug_log.h \
  tensorflowlite_mbed/tensorflow/lite/micro/debug_log_numbers.h config.h \
- magic_wand_model_data.h 4DGL-uLCD-SE/uLCD_4DGL.h \
+ magic_wand_model_data.h note.h 4DGL-uLCD-SE/uLCD_4DGL.h \
  /home/ee2405/ee2405/mbed-os/mbed.h \
  /home/ee2405/ee2405/mbed-os/platform/mbed_version.h \
  /home/ee2405/ee2405/mbed-os/rtos/rtos.h \
