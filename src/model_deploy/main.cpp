@@ -13,9 +13,8 @@
 #include "tensorflow/lite/version.h"
 
 #define standard_note_length 0.1
-#define song_length_0 199
-#define song_length_1 199
-#define song_length_2 199
+#define song_number 3
+#define song_length 500
 
 DA7212 audio;
 
@@ -65,6 +64,12 @@ bool pause_tmp = pause;
 /*****************************************************************************/
 int16_t waveform[kAudioTxBufferSize];
 int length;
+char song_name[song_number][18] = {
+    "moonlight_0",
+    "moonlight_1",
+    "moonlight_2"
+};
+
 int note[6][12] {
     33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 62,
     65, 69, 73, 78, 82, 87, 93, 98, 104, 110, 117, 123,
@@ -73,215 +78,114 @@ int note[6][12] {
     523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988,
     1047, 1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976
 };
-int song_0[song_length_0] = {
+
+int song[song_number][song_length] = {
+    {
+    // 1
     note[1][1], note[1][8], note[2][1], note[2][4], note[2][8], note[2][1], note[2][4], note[2][8],
     note[3][1], note[2][4], note[2][8], note[3][1], note[3][4], note[2][8], note[3][1], note[3][4],
     note[3][8], note[3][1], note[3][4], note[3][8], note[4][1], note[3][4], note[3][8], note[4][1],
     note[4][4], note[3][8], note[4][1], note[4][4], note[4][8], note[4][8],
-
+    // 3
     note[1][0], note[1][8], note[2][0], note[2][3], note[2][8], note[2][0], note[2][3], note[2][8],
     note[3][0], note[2][3], note[2][8], note[3][0], note[3][3], note[2][8], note[3][0], note[3][3],
     note[3][8], note[3][0], note[3][3], note[3][8], note[4][0], note[3][3], note[3][8], note[4][0],
     note[4][3], note[3][8], note[4][0], note[4][3], note[4][8], note[4][8],
-
+    // 5
     note[0][11], note[2][1], note[2][5], note[2][8], note[3][1], note[2][5], note[2][8], note[3][1],
     note[3][5], note[2][8], note[3][1], note[3][5], note[2][8], note[3][1], note[3][5], note[3][8],
     note[4][1], note[3][5], note[3][8], note[4][1], note[4][5], note[3][8], note[4][1], note[4][5],
     note[4][8], note[4][1], note[4][5], note[4][8], note[5][1], note[5][1],
-
+    // 7
     note[0][8], note[1][1], note[1][6], note[1][9], note[3][1], note[3][1], note[3][6], note[3][8],
     note[4][1], note[4][1], note[4][6], note[4][8], note[5][1], note[5][1],
-    note[0][8], note[1][1], note[1][4], note[1][10], note[3][1], note[3][1], note[3][4], note[3][8],
-    note[4][1], note[4][1], note[4][4], note[4][8], note[5][1], note[5][1],
-
+    note[0][8], note[1][1], note[1][4], note[1][7], note[3][1], note[3][1], note[3][4], note[3][7],
+    note[4][1], note[4][1], note[4][4], note[4][7], note[5][1], note[5][1],
+    // 9
     note[5][0], note[3][8], note[4][8], note[3][8], note[4][8], note[3][10], note[4][8],
     note[4][0], note[4][8], note[5][1], note[4][8], note[4][3], note[4][8], note[4][0], note[4][8],
     note[4][3], note[4][8], note[4][1], note[4][8], note[4][6], note[4][8], note[4][4], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][0], note[4][8], note[3][9], note[4][10],
-
+    note[4][3], note[4][8], note[4][1], note[4][8], note[4][0], note[4][8], note[3][9], note[4][7],
+    // 11
     note[3][8], note[5][0], note[3][8], note[4][8], note[3][8], note[4][8], note[3][10], note[4][8],
     note[4][0], note[4][8], note[5][1], note[4][8], note[4][3], note[4][8], note[4][0], note[4][8],
     note[4][3], note[4][8], note[4][1], note[4][8], note[4][6], note[4][8], note[4][4], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][0], note[4][8], note[3][9], note[4][10],
-
-    note[3][8], note[4][8], note[3][9], note[4][8], note[3][8], note[4][8], note[3][9], note[4][8],
-    note[3][8], note[4][8], note[3][9], note[4][8], note[3][8], note[4][8], note[3][9], note[4][8],
-    note[3][8], note[2][8]
-};
-int song_1[song_length_1] = {
+    note[4][3], note[4][8], note[4][1], note[4][8], note[4][0], note[4][8], note[3][9], note[4][7],
+    // 13
+    note[3][8], note[4][8], note[3][9], note[4][7], note[3][8], note[4][8], note[3][9], note[4][7],
+    note[3][8], note[4][8], note[3][9], note[4][7], note[3][8], note[4][8], note[3][9], note[4][7],
+    note[3][8], note[2][8],
+    // 15
     note[1][1], note[1][8], note[2][1], note[2][4], note[2][8], note[2][1], note[2][4], note[2][8],
     note[3][1], note[2][4], note[2][8], note[3][1], note[3][4], note[2][8], note[3][1], note[3][4],
     note[3][8], note[3][1], note[3][4], note[3][8], note[4][1], note[3][4], note[3][8], note[4][1],
-    note[4][4], note[3][8], note[4][1], note[4][4], note[4][8], note[4][8],
-
-    note[1][0], note[1][8], note[2][0], note[2][3], note[2][8], note[2][0], note[2][3], note[2][8],
-    note[3][0], note[2][3], note[2][8], note[3][0], note[3][3], note[2][8], note[3][0], note[3][3],
-    note[3][8], note[3][0], note[3][3], note[3][8], note[4][0], note[3][3], note[3][8], note[4][0],
-    note[4][3], note[3][8], note[4][0], note[4][3], note[4][8], note[4][8],
-
-    note[0][11], note[2][1], note[2][5], note[2][8], note[3][1], note[2][5], note[2][8], note[3][1],
-    note[3][5], note[2][8], note[3][1], note[3][5], note[2][8], note[3][1], note[3][5], note[3][8],
-    note[4][1], note[3][5], note[3][8], note[4][1], note[4][5], note[3][8], note[4][1], note[4][5],
-    note[4][8], note[4][1], note[4][5], note[4][8], note[5][1], note[5][1],
-
-    note[0][8], note[1][1], note[1][6], note[1][9], note[3][1], note[3][1], note[3][6], note[3][8],
-    note[4][1], note[4][1], note[4][6], note[4][8], note[5][1], note[5][1],
-    note[0][8], note[1][1], note[1][4], note[1][10], note[3][1], note[3][1], note[3][4], note[3][8],
-    note[4][1], note[4][1], note[4][4], note[4][8], note[5][1], note[5][1],
-
-    note[5][0], note[3][8], note[4][8], note[3][8], note[4][8], note[3][10], note[4][8],
-    note[4][0], note[4][8], note[5][1], note[4][8], note[4][3], note[4][8], note[4][0], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][6], note[4][8], note[4][4], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][0], note[4][8], note[3][9], note[4][10],
-
-    note[3][8], note[5][0], note[3][8], note[4][8], note[3][8], note[4][8], note[3][10], note[4][8],
-    note[4][0], note[4][8], note[5][1], note[4][8], note[4][3], note[4][8], note[4][0], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][6], note[4][8], note[4][4], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][0], note[4][8], note[3][9], note[4][10],
-
-    note[3][8], note[4][8], note[3][9], note[4][8], note[3][8], note[4][8], note[3][9], note[4][8],
-    note[3][8], note[4][8], note[3][9], note[4][8], note[3][8], note[4][8], note[3][9], note[4][8],
-    note[3][8], note[2][8]
+    note[4][4], note[4][4], note[4][8], note[5][1], note[5][4], note[5][4],
+    // 17
+    note[0][10], note[1][4], note[1][7], note[3][1], note[3][4], note[1][7], note[3][1], note[3][4],
+    note[3][7], note[3][1], note[3][4], note[3][7], note[4][1], note[3][4], note[3][7], note[4][1],
+    note[4][4], note[3][7], note[4][1], note[4][4], note[4][7], note[4][1], note[4][4], note[4][7],
+    note[5][1], note[4][4], note[4][7], note[5][1], note[5][4], note[5][4],
+    // 19
+    note[0][7], note[1][3], note[2][10], note[3][1], note[3][3], note[2][10], note[3][1], note[3][3],
+    note[3][10], note[3][1], note[3][3], note[3][10], note[4][1], note[3][3], note[3][10], note[4][1],
+    note[4][3], note[3][10], note[4][1], note[4][3], note[4][10], note[4][1], note[4][3], note[4][10],
+    note[5][1], note[4][10], note[4][3], note[4][1], note[4][10], note[4][3], note[4][1], note[3][10]
+    }, {0}, {0} // note[][], note[][], note[][], note[][], note[][], note[][], note[][], note[][],
 };
-int song_2[song_length_2] = {
-    note[1][1], note[1][8], note[2][1], note[2][4], note[2][8], note[2][1], note[2][4], note[2][8],
-    note[3][1], note[2][4], note[2][8], note[3][1], note[3][4], note[2][8], note[3][1], note[3][4],
-    note[3][8], note[3][1], note[3][4], note[3][8], note[4][1], note[3][4], note[3][8], note[4][1],
-    note[4][4], note[3][8], note[4][1], note[4][4], note[4][8], note[4][8],
 
-    note[1][0], note[1][8], note[2][0], note[2][3], note[2][8], note[2][0], note[2][3], note[2][8],
-    note[3][0], note[2][3], note[2][8], note[3][0], note[3][3], note[2][8], note[3][0], note[3][3],
-    note[3][8], note[3][0], note[3][3], note[3][8], note[4][0], note[3][3], note[3][8], note[4][0],
-    note[4][3], note[3][8], note[4][0], note[4][3], note[4][8], note[4][8],
-
-    note[0][11], note[2][1], note[2][5], note[2][8], note[3][1], note[2][5], note[2][8], note[3][1],
-    note[3][5], note[2][8], note[3][1], note[3][5], note[2][8], note[3][1], note[3][5], note[3][8],
-    note[4][1], note[3][5], note[3][8], note[4][1], note[4][5], note[3][8], note[4][1], note[4][5],
-    note[4][8], note[4][1], note[4][5], note[4][8], note[5][1], note[5][1],
-
-    note[0][8], note[1][1], note[1][6], note[1][9], note[3][1], note[3][1], note[3][6], note[3][8],
-    note[4][1], note[4][1], note[4][6], note[4][8], note[5][1], note[5][1],
-    note[0][8], note[1][1], note[1][4], note[1][10], note[3][1], note[3][1], note[3][4], note[3][8],
-    note[4][1], note[4][1], note[4][4], note[4][8], note[5][1], note[5][1],
-
-    note[5][0], note[3][8], note[4][8], note[3][8], note[4][8], note[3][10], note[4][8],
-    note[4][0], note[4][8], note[5][1], note[4][8], note[4][3], note[4][8], note[4][0], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][6], note[4][8], note[4][4], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][0], note[4][8], note[3][9], note[4][10],
-
-    note[3][8], note[5][0], note[3][8], note[4][8], note[3][8], note[4][8], note[3][10], note[4][8],
-    note[4][0], note[4][8], note[5][1], note[4][8], note[4][3], note[4][8], note[4][0], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][6], note[4][8], note[4][4], note[4][8],
-    note[4][3], note[4][8], note[4][1], note[4][8], note[4][0], note[4][8], note[3][9], note[4][10],
-
-    note[3][8], note[4][8], note[3][9], note[4][8], note[3][8], note[4][8], note[3][9], note[4][8],
-    note[3][8], note[4][8], note[3][9], note[4][8], note[3][8], note[4][8], note[3][9], note[4][8],
-    note[3][8], note[2][8]
-};
-int noteLength_0[song_length_0] = {
+int noteLength[song_number][song_length] = {
+    {
+    // 1
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 2, 2,
-
+    // 3
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 2, 2,
-
+    // 5
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 2, 2,
-
+    // 7
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 2, 2,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 2, 2,
-
+    // 9
     2, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
-
+    // 11
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
-
+    // 13
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
-    4, 12
-};
-int noteLength_1[song_length_1] = {
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-
+    4, 12,
+    // 15
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 2, 2,
-
+    // 17
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 2, 2,
-
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-
-    2, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-
+    // 19
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
-
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    4, 12
-};
-int noteLength_2[song_length_2] = {
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 2, 2,
-
-    2, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    4, 12
+    0
+    }, {0}, {0}
 };
 /*****************************************************************************/
 
@@ -299,9 +203,6 @@ void pause_switch_2();
 void uLCD_display(); 
 /*********AUDIO FUNCTIONS*********/
 void playNote(int freq);
-void song_function_0();
-void song_function_1();
-void song_function_2();
 
 int main(int argc, char* argv[]) {
     initial();
@@ -322,49 +223,15 @@ int main(int argc, char* argv[]) {
 }
 
 void song_function_0() {
-    for(int i = 0; i < song_length_0; i++) {
+    for(int i = 0; i < song_length; i++) {
         if (pause)
             break;
-        length= noteLength_0[i];
-        while(length > 0) {
-            for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize * standard_note_length * 0.1 * length; ++j) {
-                queue_audio.call(playNote, song_0[i]);
-            }
-            if (length == 1) {
-                queue_audio.call(playNote, 1);
-            }
-            length--;
-            wait(standard_note_length);
-        }
-    }
-}
-
-void song_function_1() {
-    for(int i = 0; i < song_length_1; i++) {
-        if (pause)
+        length = noteLength[i];
+        if (length == 0)
             break;
-        length= noteLength_1[i];
         while(length > 0) {
             for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize * standard_note_length * 0.1 * length; ++j) {
-                queue_audio.call(playNote, song_1[i]);
-            }
-            if (length == 1) {
-                queue_audio.call(playNote, 1);
-            }
-            length--;
-            wait(standard_note_length);
-        }
-    }
-}
-
-void song_function_2() {
-    for(int i = 0; i < song_length_2; i++) {
-        if (pause)
-            break;
-        length= noteLength_2[i];
-        while(length > 0) {
-            for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize * standard_note_length * 0.1 * length; ++j) {
-                queue_audio.call(playNote, song_2[i]);
+                queue_audio.call(playNote, song[i]);
             }
             if (length == 1) {
                 queue_audio.call(playNote, 1);
@@ -407,29 +274,69 @@ void pause_switch_2() {
     if (!pause) {
         switch (mode_index) {
         case 0:
-            switch (song_index) {
-            case 0:
-                song_function_0();
-                break;
-            case 1:
-                song_function_1();
-                break;
-            case 2:
-                song_function_2();
-                break;
-            default:
-                queue_audio.call(playNote, 1);
-                break;
+            for(int i = 0; i < song_length; i++) {
+                if (pause)
+                    break;
+                length = noteLength[song_index][i];
+                if (length == 0)
+                    break;
+                while(length > 0) {
+                    for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize * standard_note_length * 0.1 * length; ++j) {
+                        queue_audio.call(playNote, song[song_index][i]);
+                    }
+                    if (length == 1) {
+                        queue_audio.call(playNote, 1);
+                    }
+                    length--;
+                    wait(standard_note_length);
+                }
             }
+            pause = true;
             break;
         case 1:
-            song_function_0();
-            song_function_1();
-            song_function_2();
+            for (song_index = 0; song_index < song_number; song_index++) {
+                for(int i = 0; i < song_length; i++) {
+                    if (pause)
+                        break;
+                    length = noteLength[song_index][i];
+                    if (length == 0)
+                        break;
+                    while(length > 0) {
+                        for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize * standard_note_length * 0.1 * length; ++j) {
+                            queue_audio.call(playNote, song[song_index][i]);
+                        }
+                        if (length == 1) {
+                            queue_audio.call(playNote, 1);
+                        }
+                        length--;
+                        wait(standard_note_length);
+                    }
+                }
+            }
+            pause = true;
+            break;
         case 2:
-            song_function_2();
-            song_function_1();
-            song_function_0();
+            for (song_index = song_number - 1; song_index >= 0; song_index--) {
+                for(int i = 0; i < song_length; i++) {
+                    if (pause)
+                        break;
+                    length = noteLength[song_index][i];
+                    if (length == 0)
+                        break;
+                    while(length > 0) {
+                        for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize * standard_note_length * 0.1 * length; ++j) {
+                            queue_audio.call(playNote, song[song_index][i]);
+                        }
+                        if (length == 1) {
+                            queue_audio.call(playNote, 1);
+                        }
+                        length--;
+                        wait(standard_note_length);
+                    }
+                }
+            }
+            pause = true;
+            break;
         default:
             queue_audio.call(playNote, 1);
             break;
@@ -465,22 +372,7 @@ void uLCD_display() {
         default:
             if (is_select) {
                 uLCD.printf("You select change songs mode.\n");
-                switch (song_index) {
-                case 0:
-                    uLCD.printf("You select song0.\n");
-                    break;
-                case 1:
-                    uLCD.printf("You select song1.\n");
-                    break;
-                case 2:
-                    uLCD.printf("You select song2.\n");
-                    break;
-                case 3:
-                    uLCD.printf("You select song3.\n");
-                    break;
-                default:
-                    break;
-                }
+                uLCD.printf("This song is:\n\"%s\"\n", song_name[song_index]);
             } else {
                 uLCD.printf("Now is change songs mode.\n");
             }
@@ -491,6 +383,7 @@ void uLCD_display() {
             uLCD.printf("You are playing Taiko!\n");
         } else {
             uLCD.printf("You are playing the song!\n");
+            uLCD.printf("This song is:\n\"%s\"\n", song_name[song_index]);
         }
     }
 }
@@ -570,7 +463,7 @@ void DNN() {
             if (is_select && mode_index == 0) {
                 if (gesture_index == 0) {
                     if (pause) {
-                        if (song_index == 2) {
+                        if (song_index == song_number - 1) {
                             song_index = 0;
                         } else {
                             song_index++;
