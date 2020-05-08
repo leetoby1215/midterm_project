@@ -3,6 +3,7 @@
 
 #define song_number 8
 #define song_length 400
+#define Taiko_length 400
 
 int note[6][12] {
     33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 62,
@@ -868,5 +869,8 @@ extern int noteLength[song_number][song_length] = {{
     0
     }
 };
+
+extern int Taikou_song[Taiko_length];
+extern int Taikou_noteLength[Taiko_length] = {0};
 
 #endif
