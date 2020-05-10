@@ -5,7 +5,7 @@
 #define song_length 400
 #define Taiko_length 400
 
-int note[6][12] {
+int note[6][12] = {
     33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 62,
     65, 69, 73, 78, 82, 87, 93, 98, 104, 110, 117, 123,
     131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247,
@@ -870,7 +870,8 @@ extern int noteLength[song_number][song_length] = {{
     }
 };
 
-extern int Taikou_song[Taiko_length];
-extern int Taikou_noteLength[Taiko_length] = {0};
+extern int Taiko_song[Taiko_length] = {0};
+extern int Taiko_noteLength[Taiko_length] = {0};
+extern int Taiko_beatNote[Taiko_length] = {0};
 
 #endif

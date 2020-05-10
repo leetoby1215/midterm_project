@@ -3,17 +3,51 @@ import serial
 import time
 waitTime = 0.001
 
-# generate the waveform table
-signalLength = 4096
-t = np.linspace(0, 2 * np.pi * (1.0 - 1.0 / signalLength), signalLength)
-signalTable = (np.sin(t) + 1.0) / 2.0 * 0.5
-# output formatter
-formatter = lambda x: "%.5f" % x
+note = np.array([
+    [33, 35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 62],
+    [65, 69, 73, 78, 82, 87, 93, 98, 104, 110, 117, 123],
+    [131, 139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247],
+    [262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494],
+    [523, 554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988],
+    [1047, 1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976]
+])
 
-# send the waveform table to K66F
+song = np.array([
+    261, 261, 392, 392, 440, 440, 392,
+    349, 349, 330, 330, 294, 294, 261,
+    392, 392, 349, 349, 330, 330, 294,
+    392, 392, 349, 349, 330, 330, 294,
+    261, 261, 392, 392, 440, 440, 392,
+    349, 349, 330, 330, 294, 294, 261,
+    0
+])
+
+song_length = np.array([
+    4, 4, 4, 4, 4, 4, 8,
+    4, 4, 4, 4, 4, 4, 8,
+    4, 4, 4, 4, 4, 4, 8,
+    4, 4, 4, 4, 4, 4, 8,
+    4, 4, 4, 4, 4, 4, 8,
+    4, 4, 4, 4, 4, 4, 8,
+    0
+])
+
+beat_note = np.array([
+    1, 0, 1, 0, 1, 0, 1,
+    1, 0, 1, 0, 1, 0, 1,
+    1, 0, 1, 0, 1, 0, 1,
+    1, 0, 1, 0, 1, 0, 1,
+    1, 0, 1, 0, 1, 0, 1,
+    1, 0, 1, 0, 1, 0, 1,
+    0
+])
+
+songTable = song * 1000 + song_length * 10 + beat_note
+formatter = lambda x: "%7.7d" % x
+
 serdev = '/dev/ttyACM0'
 s = serial.Serial(serdev)
-for data in signalTable:
+for data in songTable:
     s.write(bytes(formatter(data), 'UTF-8'))
     time.sleep(waitTime)
 s.close()

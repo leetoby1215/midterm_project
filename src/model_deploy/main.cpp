@@ -23,12 +23,17 @@ InterruptIn sw2(SW2);
 InterruptIn sw3(SW3);
 
 Timer debounce;
+Timer Taiko;
 
 EventQueue queue_sw3;
 EventQueue queue_sw3_1;
 EventQueue queue_sw3_2;
 EventQueue queue_uLCD;
 EventQueue queue_audio;
+EventQueue queue_load_data;
+EventQueue queue_special_effect;
+EventQueue queue_Taiko_song;
+EventQueue queue_fall_note;
 
 Thread thread_DNN;
 Thread thread_select_detect;
@@ -37,7 +42,11 @@ Thread thread_sw3_1;
 Thread thread_sw3_2;
 Thread thread_uLCD;
 Thread thread_audio;
-
+Thread thread_load_data;
+Thread thread_beat_detect;
+Thread thread_special_effect;
+Thread thread_Taiko_song;
+Thread thread_fall_note;
 /*****************************************************************************/
 constexpr int kTensorArenaSize = 60 * 1024;
 uint8_t tensor_arena[kTensorArenaSize];
@@ -64,6 +73,12 @@ bool pause_tmp = pause;
 int16_t waveform[kAudioTxBufferSize];
 int length;
 /*****************************************************************************/
+bool beat = false;
+bool beat_tmp = beat;
+char serialInBuffer[7];
+int score = 0;
+bool have_clean_the_beat = false;
+/*****************************************************************************/
 
 /*********DNN FUNCTIONS*********/
 void initial();
@@ -79,6 +94,12 @@ void pause_switch_2();
 void uLCD_display(); 
 /*********AUDIO FUNCTIONS*********/
 void playNote(int freq);
+/*********TAIKO*********/
+void load_data();
+void beat_detect();
+void special_effect();
+void Taiko_song_play();
+void fall_note();
 
 int main(int argc, char* argv[]) {
     initial();
@@ -90,30 +111,101 @@ int main(int argc, char* argv[]) {
     thread_sw3_2.start(callback(&queue_sw3_2, &EventQueue::dispatch_forever));
     thread_uLCD.start(callback(&queue_uLCD, &EventQueue::dispatch_forever));
     thread_audio.start(callback(&queue_audio, &EventQueue::dispatch_forever));
+    thread_load_data.start(callback(&queue_load_data, &EventQueue::dispatch_forever));
+    thread_special_effect.start(callback(&queue_special_effect, &EventQueue::dispatch_forever));
+    thread_Taiko_song.start(callback(&queue_Taiko_song, &EventQueue::dispatch_forever));
+    thread_fall_note.start(callback(&queue_fall_note, &EventQueue::dispatch_forever));
+    thread_beat_detect.start(&beat_detect);
     queue_uLCD.call(uLCD_display);
     sw2.fall(&select_switch);
     sw3.fall(queue_sw3.event(pause_switch));
     while (true) {
-        wait(1);
+        wait_ms(1000);
     }
 }
 
-void song_function_0() {
-    for(int i = 0; i < song_length; i++) {
+void fall_note() {
+    for (int j = 10; j <= 100; j += 10) {
         if (pause)
             break;
-        length = noteLength[i];
+        if (have_clean_the_beat) {
+            uLCD.line(50, j, 78, j - 10, 0);
+            break;
+        }
+        uLCD.line(50, j, 78, j, WHITE);
+        wait_ms(0.1);
+        uLCD.line(50, j - 10, 78, j - 10, 0);
+    }
+}
+
+void Taiko_song_play() {
+    for (int i = 0; i < Taiko_length; i++) {
+        if (pause) {
+            score = 0;
+            break;
+        }
+        length = Taiko_noteLength[i];
         if (length == 0)
             break;
+        have_clean_the_beat = false;
+        if (Taiko_beatNote[i] == 1) {
+            queue_fall_note.call(fall_note);
+        }
         while(length > 0) {
             for(int j = 0; j < kAudioSampleFrequency / kAudioTxBufferSize * standard_note_length * 0.1 * length; ++j) {
-                queue_audio.call(playNote, song[i]);
+                queue_audio.call(playNote, Taiko_song[i]);
             }
             if (length == 1) {
                 queue_audio.call(playNote, 1);
             }
             length--;
             wait(standard_note_length);
+        }
+    }
+    if (pause)
+        return;
+    Taiko.stop();
+    Taiko.reset();
+    uLCD.cls();
+    uLCD.printf("Your score: %d\n", score);
+    score = 0;
+}
+
+void special_effect() {
+    if (length <= 4) {
+        score++;
+        have_clean_the_beat = true;
+    }
+}
+
+void beat_detect() {
+    while (true) {
+        if (mode_index == 3 && is_select && !pause && Taiko.read() > 6) {
+            if (beat_tmp != beat)
+                queue_special_effect.call(special_effect);
+            beat_tmp = beat;
+        }
+        wait_ms(100);
+    }
+}
+
+void load_data() {
+    int i = 0;
+    int get_value;
+    while(i < Taiko_length) {
+        if (pc.readable()) {
+            pc.gets(serialInBuffer, 8);
+            get_value = (int) std::stoi(serialInBuffer);
+            Taiko_noteLength[i] = (get_value / 10) % 100;
+            Taiko_song[i] = get_value / 1000;
+            Taiko_beatNote[i] = get_value % 10;
+            if (Taiko_noteLength[i] == 0) {
+                uLCD.printf("File load completed\n");
+                uLCD.printf("You can push SW3 to start the game!\n");
+                break;
+            } else {
+                i++;
+            }
         }
     }
 }
@@ -219,6 +311,8 @@ void pause_switch_2() {
                     break;
             }
             break;
+        case 3:
+            break;
         default:
             queue_audio.call(playNote, 1);
             break;
@@ -228,6 +322,7 @@ void pause_switch_2() {
 
 void uLCD_display() {
     uLCD.cls();
+    uLCD.color(GREEN);
     if (pause) {
         switch (mode_index) {
         case 1:
@@ -247,6 +342,8 @@ void uLCD_display() {
         case 3:
             if (is_select) {
                 uLCD.printf("You select Taiko mode.\n");
+                uLCD.printf("Please load the data from python first.\n");
+                queue_load_data.call(load_data);
             } else {
                 uLCD.printf("Now is Taiko mode.\n");
             }
@@ -255,6 +352,19 @@ void uLCD_display() {
             if (is_select) {
                 uLCD.printf("You select change songs mode.\n");
                 uLCD.printf("This song is:\n\"%s\"\n", song_name[song_index]);
+                if (mode_index == 2) {
+                    if (song_index == 0) {
+                        uLCD.printf("The next song is:\n\"%s\"\n", song_name[song_number - 1]);
+                    } else {
+                        uLCD.printf("The next song is:\n\"%s\"\n", song_name[song_index - 1]);
+                    }
+                } else {
+                    if (song_index == song_number - 1) {
+                        uLCD.printf("The next song is:\n\"%s\"\n", song_name[0]);
+                    } else {
+                        uLCD.printf("The next song is:\n\"%s\"\n", song_name[song_index + 1]);
+                    }
+                }
             } else {
                 uLCD.printf("Now is change songs mode.\n");
             }
@@ -262,10 +372,26 @@ void uLCD_display() {
         }
     } else {
         if (mode_index == 3) {
-            uLCD.printf("You are playing Taiko!\n");
+            Taiko.start();
+            uLCD.text_width(6);
+            uLCD.text_height(6);
+            uLCD.color(RED);
+            for (int i = 5; i >= 0; i--) {
+                uLCD.locate(1, 1);
+                uLCD.printf("%d", i);
+                wait(1);
+            }
+            uLCD.cls();
+            uLCD.line(10, 100, 118, 100, RED);
+            queue_Taiko_song.call(Taiko_song_play);
         } else {
             uLCD.printf("You are playing the song!\n");
             uLCD.printf("This song is:\n\"%s\"\n", song_name[song_index]);
+            if (song_index == song_number - 1) {
+                uLCD.printf("The next song is:\n\"%s\"\n", song_name[0]);
+            } else {
+                uLCD.printf("The next song is:\n\"%s\"\n", song_name[song_index + 1]);
+            }
         }
     }
 }
@@ -352,6 +478,9 @@ void DNN() {
                         }
                     }
                 }
+            }
+            if (gesture_index == 1) {
+                beat = !beat;
             }
         }
     }
