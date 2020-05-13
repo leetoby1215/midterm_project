@@ -129,7 +129,7 @@ void fall_note() {
         if (pause)
             break;
         if (have_clean_the_beat) {
-            uLCD.line(50, j, 78, j - 10, 0);
+            uLCD.line(50, j - 10, 78, j - 10, 0);
             break;
         }
         uLCD.line(50, j, 78, j, WHITE);
@@ -212,7 +212,7 @@ void load_data() {
 
 void playNote(int freq) {
     for (int i = 0; i < kAudioTxBufferSize; i++) {
-        waveform[i] = (int16_t) (sin((double)i * 2. * M_PI / (double) (kAudioSampleFrequency / (double) freq)) * ((1<<16) - 1));
+        waveform[i] = (int16_t) (sin((double)i * 2. * M_PI / (double) (kAudioSampleFrequency / (double) freq)) * ((1<<16) - 1)) ;
     }
     audio.spk.play(waveform, kAudioTxBufferSize);
 }
@@ -329,14 +329,24 @@ void uLCD_display() {
             if (is_select) {
                 uLCD.printf("You select forward mode.\n");
             } else {
-                uLCD.printf("Now is forward mode.\n");
+                uLCD.printf("Change songs mode\n\n");
+                uLCD.color(BLUE);
+                uLCD.printf("Forward mode\n\n");
+                uLCD.color(GREEN);
+                uLCD.printf("Backward mode\n\n");
+                uLCD.printf("Taiko mode\n\n");
             }
             break;
         case 2:
             if (is_select) {
                 uLCD.printf("You select backward mode.\n");
             } else {
-                uLCD.printf("Now is backward mode.\n");
+                uLCD.printf("Change songs mode\n\n");
+                uLCD.printf("Forward mode\n\n");
+                uLCD.color(BLUE);
+                uLCD.printf("Backward mode\n\n");
+                uLCD.color(GREEN);
+                uLCD.printf("Taiko mode\n\n");
             }
             break;
         case 3:
@@ -345,7 +355,12 @@ void uLCD_display() {
                 uLCD.printf("Please load the data from python first.\n");
                 queue_load_data.call(load_data);
             } else {
-                uLCD.printf("Now is Taiko mode.\n");
+                uLCD.printf("Change songs mode\n\n");
+                uLCD.printf("Forward mode\n\n");
+                uLCD.printf("Backward mode\n\n");
+                uLCD.color(BLUE);
+                uLCD.printf("Taiko mode\n\n");
+                uLCD.color(GREEN);
             }
             break;
         default:
@@ -366,7 +381,12 @@ void uLCD_display() {
                     }
                 }
             } else {
-                uLCD.printf("Now is change songs mode.\n");
+                uLCD.color(BLUE);
+                uLCD.printf("Change songs mode\n\n");
+                uLCD.color(GREEN);
+                uLCD.printf("Forward mode\n\n");
+                uLCD.printf("Backward mode\n\n");
+                uLCD.printf("Taiko mode\n\n");
             }
             break;
         }
